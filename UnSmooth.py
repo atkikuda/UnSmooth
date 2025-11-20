@@ -1,0 +1,157 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import probscale
+import os
+
+#Location where the KO estimates and sample are found
+basepath = ".\\Data\\"
+"""
+arqref='sample72.csv'
+arqOK='sample72_KO2.csv'
+"""
+arqref='SDXK4110.csv'
+arqOK='SDXK4110_KO2.csv'
+#"""
+p = os.path.splitext(basepath + arqref)[0] #Split filename from extension
+field_separador = ';'
+
+#read file sample
+df = pd.read_csv(basepath + arqref,delimiter=field_separador)
+sample_values=df.values
+print('==========================')
+#Read OK file
+df_OK=pd.read_csv(basepath + arqOK, delimiter=field_separador) # o arquivo tem cabecalho,
+                                                          # header = None)
+OK_estimates=df_OK.values
+#Clean nodata (-99)
+valid_indexes = np.where((OK_estimates[:,2] > -99) & (OK_estimates[:,2] < 99))
+OK_est_clean = OK_estimates[valid_indexes] #Note: Since they are indexes,
+                                       #the entire line will be transferred.
+
+#1-) Calculating the cumulative frequency of the sample data (figure 1D)
+from collections import Counter
+#Count the frequencies of the data
+freq_item = Counter(sample_values[:,2])
+#Sort the items in crescent order 
+freq_sorted = sorted(freq_item.keys())
+acum_freq = {}
+acum_sum = 0
+for item in freq_sorted:
+    acum_sum += freq_item[item]
+    acum_freq[item] = acum_sum
+acum_sum = acum_sum + 1
+FrqAcum=np.array(list(acum_freq.values()))/acum_sum
+
+from scipy.stats import norm
+#
+#  ppf = Percent Point Function
+#Convert to gaussian
+FrqToGauss = norm.ppf(FrqAcum, loc=0, scale=1) #Standard normal
+
+#2-) Calculate the cumulative frequency of KO estimates (figure 1A)
+#Make the sort of the data but store only the original indices of the points
+#of the block model to reconstruct the model with the corrected values
+order = np.argsort(OK_est_clean[:,2])
+frq_it_OK = Counter(OK_est_clean[:,2])
+freq_sorted_OK = sorted(frq_it_OK.keys())
+acum_freq_OK_bl = {}    #To the model block
+acum_freq_OK_diag = {}  #To the diagram plot
+acum_sum_OK = 0
+k=0
+for item in freq_sorted_OK:
+    acum_sum_OK += frq_it_OK[item]
+    acum_freq_OK_diag[item] = acum_sum_OK
+    #Restoring the amount (not the order) of existing points in the
+    #model block
+    for i in range(0,frq_it_OK[item]):
+        acum_freq_OK_bl[k] = acum_sum_OK
+        k +=1   
+acum_sum_OK = acum_sum_OK + 1
+#To the block model
+FrqAcumOK_bl=np.array(list(acum_freq_OK_bl.values()))/acum_sum_OK
+#To the diagram plot
+FrqAcumOK_diag = np.array(list(acum_freq_OK_diag.values()))/acum_sum_OK
+
+#3-) Convert to gaussian (Figure 1B)
+FrqToGauss_OK_bl = norm.ppf(FrqAcumOK_bl, loc=0, scale=1) 
+FrqToGauss_OK_diag = norm.ppf(FrqAcumOK_diag, loc=0, scale=1)
+
+
+#4-) Linear interpolation of the block model using the sample distribution
+#as reference (FrqToGauss and freq_sorted) (figures 1C and 1D)
+#OK corrected values
+OK_val_corr = np.interp(FrqToGauss_OK_bl,FrqToGauss,freq_sorted) 
+OK_val_diag = np.interp(FrqToGauss_OK_diag,FrqToGauss,freq_sorted)
+
+#  Recreating the block model with the corrected values of OK.
+#It is easier and efficient create the point array first since we know the
+#size of block model.  Lists are too slow to insert data in different positions
+#in a non sequential way.
+OK_blmod_corr = np.full((len(OK_est_clean[:,2]),len(OK_est_clean[1,:])+1), 0.0)
+OK_val_plot = np.full(len(OK_est_clean[:,2]), 0.0)
+for i in range(len(OK_blmod_corr)):
+    OK_blmod_corr[order[i],0] = OK_est_clean[order[i],0] #X coordinate
+    OK_blmod_corr[order[i],1] = OK_est_clean[order[i],1] #Y coordinate
+    OK_blmod_corr[order[i],2] = OK_est_clean[order[i],2] #OK estimate
+    OK_blmod_corr[order[i],3] = OK_val_corr[i]           #OK corrected
+    #Original value of OK array, but in the OK corrected array order
+    OK_val_plot[i] = OK_est_clean[order[i],2]            #OK for plotting
+np.savetxt(p+"_Corrected.csv", OK_blmod_corr, fmt='%.1f;%.1f;%.3f;%.5f')
+
+#Plot of the diagram original OK vs corrected OK
+#The Linear regression of the points will be done in logarithmic scale
+tmp = np.log10(OK_val_plot)
+vOKplt_log = tmp.reshape(-1,1)
+vOKcorr_log = np.log10(OK_val_corr)
+from sklearn.linear_model import LinearRegression
+#Linear regression of the data
+LinMod = LinearRegression().fit(vOKplt_log,vOKcorr_log)
+#Calulate the line of the regression
+vOK_reglin = LinMod.predict(vOKplt_log)
+#return the line to original scale
+OK_val_regress = 10**vOK_reglin
+
+
+plt.clf()
+plt.title('log-log')
+plt.xlabel(' Z*OK(x)')
+plt.ylabel(' Z**OK(x)')
+plt.xlim(0.1,100)
+plt.ylim(0.1,100)
+plt.loglog(OK_val_plot,OK_val_regress,'-', linewidth=1,label='Regression Line',
+         color = '#000000')
+plt.loglog(OK_val_plot,OK_val_corr,'x', markersize=2,label=' Z**OK(x) vs  Z*OK(x)',
+         color = '#F9758D')
+plt.legend(loc='center right', bbox_to_anchor=(1.0, 0.20))
+plt.savefig(p+'_EstCorr_log.png')
+plt.show()
+
+#Plot of the cumulative distribution of the sample, original OK and corrected OK
+frq_it_OK_corr = Counter(OK_val_corr)
+freq_sorted_OK_corr = sorted(frq_it_OK_corr.keys())
+acum_freq_OK_corr = {}
+acum_sum_OK_corr = 0
+for item in freq_sorted_OK_corr:
+    acum_sum_OK_corr += frq_it_OK_corr[item]
+    acum_freq_OK_corr[item] = acum_sum_OK_corr
+acum_sum_OK_corr += 1
+FrqAcumOK_corr=np.array(list(acum_freq_OK_corr.values()))/acum_sum_OK_corr
+
+
+fig_transf, ax = plt.subplots(figsize=(8, 6))
+ax.set_xlim(1e-2, 1e2)
+ax.set_xscale('log')
+ax.set_ylim(0.5, 99.99)
+ax.set_yscale('prob')
+ax.plot(freq_sorted, FrqAcum*100, 'x',
+        label="Sample data", markersize=5, color = '#F9758D')
+ax.plot(freq_sorted_OK, FrqAcumOK_diag*100, '+',
+        label="OK estimates", markersize=5, color = '#529138')
+ax.plot(freq_sorted_OK_corr, FrqAcumOK_corr*100, '.',
+        label="Corrected OK estimates", markersize=2, color = '#0000FF')
+plt.show()
+fig_transf.savefig((p+'_KOest_KOcorr.png'))
+
+
+print("end")
