@@ -16,7 +16,7 @@ single processing step, avoiding any post-processing or additional refinement.
 The algorithm is provided as a Python script (UnSmooth.py), along with the datasets used in this study, enabling readers
 to fully reproduce the presented results.
 
-##License
+## License
 This program is free software; you can redistribute it and/or modify it under the terms of MPL2 license.
 The Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MP
 L was not %% distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
