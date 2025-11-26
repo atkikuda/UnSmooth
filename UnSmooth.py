@@ -7,11 +7,11 @@ import os
 #Location where the KO estimates and sample are found
 basepath = ".\\Data\\"
 """
-arqref='sample72.csv'
-arqOK='sample72_KO2.csv'
+arqref='sampleA.csv'
+arqOK='sampleA_KO2.csv'
 """
-arqref='SDXK4110.csv'
-arqOK='SDXK4110_KO2.csv'
+arqref='sampleB.csv'
+arqOK='sampleB_KO2.csv'
 #"""
 p = os.path.splitext(basepath + arqref)[0] #Split filename from extension
 field_separador = ';'
