@@ -7,27 +7,30 @@ import os
 #Location where the KO estimates and sample are found
 basepath = ".\\Data\\"
 
-arqref='Coal_Buxton_Corr.CSV'
-arqOK='Coal_Buxton_Corr_KO2.CSV'
+arqref='thickness.CSV'
+arqOK='thickness_KO2.CSV'
 
 p = os.path.splitext(basepath + arqref)[0] #Split filename from extension
-field_separador = ';'
-col_var = 4 #Count starts from zero
+field_separator = ';'
+col_var = 3 #Count starts from zero
 col_var_OK = 2
-log_scale = 1
+log_scale = 0
 
 #read file sample
-df = pd.read_csv(basepath + arqref,delimiter=field_separador)
+df = pd.read_csv(basepath + arqref,delimiter=field_separator)
 sample_values=df.values
 print('==========================')
 #Read OK file
-df_OK=pd.read_csv(basepath + arqOK, delimiter=field_separador) # o arquivo tem cabecalho,
-                                                          # header = None)
+df_OK=pd.read_csv(basepath + arqOK, delimiter=field_separator) 
 OK_estimates=df_OK.values
 #Clean nodata (-99)
 valid_indexes = np.where((OK_estimates[:,col_var_OK] > -99) & (OK_estimates[:,col_var_OK] < 99))
 OK_est_clean = OK_estimates[valid_indexes] #Note: Since they are indexes,
                                        #the entire line will be transferred.
+
+#Obtain the length of the fractional part of the data, here we will assume that the precision
+#is uniform along all data
+precision = len(str(OK_est_clean[0,col_var_OK]).split('.')[1])
 
 #1-) Calculating the cumulative frequency of the sample data (figure 1D)
 from collections import Counter
@@ -97,7 +100,8 @@ for i in range(len(OK_blmod_corr)):
     OK_blmod_corr[order[i],3] = OK_val_corr[i]           #OK corrected
     #Original value of OK array, but in the OK corrected array order
     OK_val_plot[i] = OK_est_clean[order[i],col_var_OK]            #OK for plotting
-np.savetxt(p+"_Corrected.csv", OK_blmod_corr, fmt='%.1f;%.1f;%.3f;%.5f')
+fmt=f'%.{precision}f;%.{precision}f;%.{precision}f;%.{precision}f'
+np.savetxt(p+"_Corrected.csv", OK_blmod_corr, fmt)
 
 #Plot of the diagram original OK vs corrected OK
 if (log_scale == 1):
@@ -115,8 +119,8 @@ if (log_scale == 1):
 
 
     plt.clf()
-    plt.title('log-log')
-    plt.xlabel(' Z*OK(x)')
+    plt.title('log-log scale')
+    plt.xlabel (' Z*OK(x)')
     plt.ylabel(' Z**OK(x)')
     plt.xlim(0.1,100)
     plt.ylim(0.1,100)
@@ -128,7 +132,34 @@ if (log_scale == 1):
     plt.savefig(p+'_EstCorr_log.png')
     plt.show()
 
-#else:
+else:
+    #get the maximum and the minimal values of the variables (OK and OK corrected) for the graphic scaling
+    maxval = OK_val_plot.max() if (OK_val_plot.max() > OK_val_corr.max()) else OK_val_corr.max()
+    minval = OK_val_plot.min() if (OK_val_plot.min() < OK_val_corr.min()) else OK_val_corr.min()
+    maxval = maxval + ((maxval - minval) * 0.05)
+    minval = minval - ((maxval - minval) * 0.05)
+    
+    vOKplt = OK_val_plot.reshape(-1,1)
+    #vOKcorr = OK_val_corr
+    from sklearn.linear_model import LinearRegression
+    #Linear regression of the data
+    LinMod = LinearRegression().fit(vOKplt,OK_val_corr)
+    #Calulate the line of the regression
+    vOK_reglin = LinMod.predict(vOKplt)    
+
+    plt.clf()
+    plt.title('arithmetic scale')
+    plt.xlabel(' Z*OK(x)')
+    plt.ylabel(' Z**OK(x)')
+    plt.xlim(minval,maxval)
+    plt.ylim(minval,maxval)
+    plt.plot(OK_val_plot,vOK_reglin,'-', linewidth=1,label='Regression Line',
+               color = '#000000')
+    plt.plot(OK_val_plot,OK_val_corr,'x', markersize=2,label=' Z**OK(x) vs  Z*OK(x)',
+               color = '#F9758D')
+    plt.legend(loc='center right', bbox_to_anchor=(1.0, 0.20))
+    plt.savefig(p+'_EstCorr_log.png')
+    plt.show()
 
 #Plot of the cumulative distribution of the sample, original OK and corrected OK
 frq_it_OK_corr = Counter(OK_val_corr)
@@ -153,8 +184,22 @@ if (log_scale == 1):
             label="OK estimates", markersize=5, color = '#529138')
     ax.plot(freq_sorted_OK_corr, FrqAcumOK_corr*100, '.',
             label="Corrected OK estimates", markersize=2, color = '#0000FF')
+    plt.legend(loc='center right', bbox_to_anchor=(0.85, 0.25)) 
     plt.show()
     fig_transf.savefig((p+'_KOest_KOcorr.png'))
-#else:
+else:
+    fig_transf, ax = plt.subplots(figsize=(8, 6))
+    ax.set_xlim(minval, maxval)
+    ax.set_ylim(0.5, 99.99)
+    ax.set_yscale('prob')
+    ax.plot(freq_sorted, FrqAcum*100, 'x',
+            label="Sample data", markersize=5, color = '#F9758D')
+    ax.plot(freq_sorted_OK, FrqAcumOK_diag*100, '+',
+            label="OK estimates", markersize=5, color = '#529138')
+    ax.plot(freq_sorted_OK_corr, FrqAcumOK_corr*100, '.',
+            label="Corrected OK estimates", markersize=2, color = '#0000FF')
+    plt.legend(loc='center right', bbox_to_anchor=(0.85, 0.25)) 
+    plt.show()
+    fig_transf.savefig((p+'_KOest_KOcorr.png'))
 
 print("end")
