@@ -1,3 +1,4 @@
 *.png
 *.ipynb
 .gitignore
+.ipynb_checkpoints/UnSmooth-checkpoint.py
