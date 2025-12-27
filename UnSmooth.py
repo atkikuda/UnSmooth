@@ -111,7 +111,7 @@ maxvalue = OK_val_plot.max() if (OK_val_plot.max() > OK_val_corr.max()) else OK_
 minvalue = OK_val_plot.min() if (OK_val_plot.min() < OK_val_corr.min()) else OK_val_corr.min()
 if (log_scale == 1):
     #The Linear regression of the points will be done in logarithmic scale
-    maxval = maxvalue + (np.sqrt(maxvalue * minvalue)*0.5) #note the 10 factor in scaling
+    maxval =  1e2  #maxvalue + (np.sqrt(maxvalue * minvalue)*0.5) #note the 10 factor in scaling
     minval = minvalue - (np.sqrt(maxvalue * minvalue)*0.05)#between maxval and minval 
     tmp = np.log10(OK_val_plot)
     vOKplt_log = tmp.reshape(-1,1)
@@ -124,9 +124,7 @@ if (log_scale == 1):
     #return the line to original scale
     OK_val_regress = 10**vOK_reglin
 
-
     plt.clf()
-    #plt.rcParams['figure.figsize'] = (6, 4)  #Aprox 15x10cm
     plt.subplots(figsize=(8, 6), dpi=300)  #Aprox 20x15cm
     plt.title('log-log scale')
     plt.xlabel (' Z*OK(x)')
@@ -145,7 +143,6 @@ else:
     maxval = maxvalue + ((maxvalue - minvalue) * 0.05)
     minval = minvalue - ((maxvalue - minvalue) * 0.05)    
     vOKplt = OK_val_plot.reshape(-1,1)
-    #vOKcorr = OK_val_corr
     from sklearn.linear_model import LinearRegression
     #Linear regression of the data
     LinMod = LinearRegression().fit(vOKplt,OK_val_corr)
